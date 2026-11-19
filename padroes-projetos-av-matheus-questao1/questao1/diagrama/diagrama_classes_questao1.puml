@@ -1,0 +1,144 @@
+@startuml diagrama_classes_questao1
+title Questão 1 - Provisionamento Multinuvem (Abstract Factory + Singleton)
+
+skinparam classAttributeIconSize 0
+
+' ===== ABSTRACT FACTORY =====
+interface FabricaNuvem <<Abstract Factory>> {
+  +nomeProvedor() : String
+  +criarMaquinaVirtual() : MaquinaVirtual
+  +criarArmazenamento(gigabytes : int) : ArmazenamentoObjetos
+  +criarFila() : FilaMensagens
+  +precoHoraMaquina() : double
+  +precoGbArmazenamentoPorMes() : double
+  +precoFixoFilaPorMes() : double
+}
+
+interface RecursoNuvem <<Produto>> {
+  +identificador() : String
+  +custoMensal() : double
+  +tipoRecurso() : String
+}
+interface MaquinaVirtual <<Produto>>
+interface ArmazenamentoObjetos <<Produto>>
+interface FilaMensagens <<Produto>>
+
+RecursoNuvem <|.. MaquinaVirtual
+RecursoNuvem <|.. ArmazenamentoObjetos
+RecursoNuvem <|.. FilaMensagens
+
+class FabricaAws <<FabricaConcreta>> {
+  -seqMaquina : AtomicLong
+  -seqArmazenamento : AtomicLong
+  -seqFila : AtomicLong
+}
+class FabricaAzure <<FabricaConcreta>> {
+  -seqMaquina : AtomicLong
+  -seqArmazenamento : AtomicLong
+  -seqFila : AtomicLong
+}
+
+class RecursoFixo <<ProdutoConcreto>> {
+  -tipo : String
+  -id : String
+  -custoMensal : double
+}
+class RecursoVariavel <<ProdutoConcreto>> {
+  -precoPorUnidade : double
+  -unidades : int
+}
+
+FabricaNuvem <|.. FabricaAws
+FabricaNuvem <|.. FabricaAzure
+MaquinaVirtual <|.. RecursoFixo
+FilaMensagens <|.. RecursoFixo
+ArmazenamentoObjetos <|.. RecursoVariavel
+
+FabricaAws ..> RecursoFixo : cria
+FabricaAws ..> RecursoVariavel : cria
+FabricaAzure ..> RecursoFixo : cria
+FabricaAzure ..> RecursoVariavel : cria
+
+' ===== SINGLETONS =====
+class Configuracao <<Singleton>> {
+  -regiao : String
+  -orcamentoMensal : double
+  -Configuracao()
+  +instancia() : Configuracao$
+  +getRegiao() : String
+  +getOrcamentoMensal() : double
+}
+class AuditoriaCentral <<Singleton>> {
+  -{static} Guardiao UNICA
+  -registros : List<RegistroAuditoria>
+  -AuditoriaCentral()
+  +{static} instancia() : AuditoriaCentral$
+  +registrar(r : RegistroAuditoria) : void
+  +imprimirHistorico() : void
+}
+class RegistroAuditoria {
+  -momento : LocalDateTime
+  -nomeAmbiente : String
+  -provedor : String
+  -aceito : boolean
+  -motivo : String
+}
+AuditoriaCentral o-- RegistroAuditoria : historico unico
+
+' ===== ORQUESTRACAO =====
+class Provisionador <<Cliente da fabrica>> {
+  -fabrica : FabricaNuvem
+  +provisionar(s : SolicitacaoAmbiente) : void
+  -calcularCustoMensal(maquinas : int, gb : int) : double
+}
+class SolicitacaoAmbiente {
+  -nomeAmbiente : String
+  -quantidadeMaquinas : int
+  -gigabytesArmazenamento : int
+}
+class Ambiente {
+  -nome : String
+  -provedor : String
+  -regiao : String
+  -recursos : List<RecursoNuvem>
+  -custoMensalEstimado : double
+  +imprimirResumo() : void
+}
+class Main <<entrada>> {
+  +{static} main(args : String[]) : void
+}
+
+Provisionador o-- FabricaNuvem : recebe pronta (sem if/switch)
+Provisionador ..> SolicitacaoAmbiente : usa
+Provisionador ..> Ambiente : cria
+Ambiente o-- RecursoNuvem : recursos do mesmo provedor
+Provisionador ..> Configuracao : consulta regiao/orcamento
+Provisionador ..> AuditoriaCentral : registra ACEITO/RECUSADO
+Main ..> Provisionador : escolhe a fabrica
+Main ..> Configuracao
+Main ..> AuditoriaCentral
+
+note right of Provisionador
+  RNF02: nao conhece classes concretas
+  de provedor e nao usa if/switch.
+  RNF01: todos os recursos saem da
+  MESMA fabrica -> impossivel misturar
+  provedores.
+end note
+note right of Configuracao
+  RNF04: config.properties lido uma
+  unica vez (holder estatico,
+  thread-safe). Mesmos valores para
+  todas as classes, sem parametro.
+end note
+note right of AuditoriaCentral
+  RNF05: historico unico do programa,
+  metodos sincronizados -> seguro com
+  provisionamentos simultaneos.
+end note
+note bottom of Main
+  RF08: 2 provisionamentos Aws,
+  1 Azure e 1 recusado; dois deles
+  em threads simultaneas.
+end note
+@enduml
